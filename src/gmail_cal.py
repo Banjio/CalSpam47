@@ -11,7 +11,13 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 class GmailCalSender(object):
 
-    SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
+    SCOPES = ['https://www.googleapis.com/auth/calendar']
+
+    EVENTS = [
+        {'summary': 'Zockerabend bei Maxi', 'location': 'Hohenzollernstr. 21, 76135 Karlsruhe', 'description': 'Zocken bei Maxi in Karlsruhe - SMAAAASH'},
+        {'summary': 'Kochen bei Grewe', 'location': 'Wormser Landstr. 96, 67346 Speyer', 'description': 'Geiles Essen machen bei Grewe (ohne Alkohol bitte)!'},
+        {'summary': 'Kino', 'location': 'N7 17, 68161 Mannheim', 'description': 'Guten Film in Mannheim schauen und anschließend zu Tim - SMAAAAAAASH'}
+    ]
      
     def __init__(self, token_path: str = 'token.json', cred_path: str = 'credentials.json') -> None:
         self.token_path = Path(token_path)
@@ -66,12 +72,58 @@ class GmailCalSender(object):
         except HttpError as error:
             print('An error occurred: %s' % error)
 
-    def create_cal_event():
-        pass
+    # TODO: Event could be rafactored as dataclass
+    @staticmethod
+    def _build_event_dict(event: dict, attendees: list, start: datetime.datetime, end: datetime.datetime, 
+                        time_zone: str = "Europe/Berlin"):
+        _time_format = "%Y-%m-%dT%H:%M:%S"
+        attendees_form = [{'email': attendee} for attendee in attendees]
+        start_form = start.strftime(_time_format)
+        end_form = end.strftime(_time_format)
+
+        event = {
+            'summary': event["summary"],
+            'location': event["location"],
+            'description': event["description"],
+            'start': {
+                'dateTime': start_form,
+                'timeZone': time_zone,
+            },
+            'end': {
+                'dateTime': end_form,
+                'timeZone': time_zone,
+            },
+           #'recurrence': [
+            #    'RRULE:FREQ=DAILY;COUNT=2'
+            #],
+            'attendees': attendees_form,
+            'reminders': {
+                'useDefault': False,
+                'overrides': [
+                {'method': 'email', 'minutes': 24 * 60},
+                {'method': 'popup', 'minutes': 10},
+                ],
+            },
+            }
+        return event
+
+
+
+    def create_cal_event(self, event_dict: dict, attendees: list, start: datetime.datetime, end: datetime.datetime, 
+                        time_zone: str = "Europe/Berlin"):
+        service = build('calendar', 'v3', credentials=self.creds)
+        event_form = self._build_event_dict(event_dict, attendees, start, end, time_zone)
+        event = service.events().insert(calendarId='primary', body=event_form).execute()
+        print(f'Event created: {event.get("htmlLink")}')
+
 
 
 
 if __name__ == "__main__":
     gmaili = GmailCalSender()
+    att = ["ibakrafal@googlemail.com", "tj.seibert@outlook.com"]
+    start = datetime.datetime(2023, 9, 16, 19, 0,0)
+    end = datetime.datetime(2023, 9, 17, 12, 0, 0)
+    gmaili.create_cal_event(GmailCalSender.EVENTS[1], att, start, end)
     gmaili.list_events()
     print("Done")
